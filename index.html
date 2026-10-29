@@ -186,11 +186,112 @@
 			1.69 tests per ray with acceleration. 
 		</p>
 
+		<h2>Part 3: Direct Illumination</h2>
+		<p>
+			In part 3, I began implementing simulation of light transport throughout the scene with direct illumination, which consists of zero-bounce 
+			illumination (light that comes from light sources themselves) and one-bounce illumination (light that reflects off of a surface).
+			In this section we're dealing only with surfaces with Lambertian diffuse BRDFs, which reflect incoming light equally in all directions.
+		</p>
+		<p>
+			Since zero-bounce illumination is just the light that is emitted by a light source, the rendering equation is simply \( L_o(p, \omega_o)
+			= L_e(p, \omega_o) \), where \( L_o \) is the radiance leaving point p in the direction given by angle \( \omega_o \), and \( L_e \)
+			is the radiance emitted by the light source. In my code, since we're considering the emitted radiance from the primitive intersected by
+			the ray in this function, I set \( L_o = L_e = \) the BSDF emission of the intersected primitive.
+		</p>
+		<p>
+			For one-bounce illumination, there are two implementation methods: uniform sampling of the hemisphere around the intersection point, 
+			and importance sampling of the light sources themselves. For <strong>uniform hemisphere sampling</strong>, we want to integrate over 
+			all of the light arriving at the intersection point on a surface; we can use Monte Carlo integration to estimate this integral, yielding
+			the estimator \( \frac{1}{N} \sum_{j=1}^{N} \frac{f_r(p, \omega_j \rightarrow \omega_r) * L_i(p, \omega_j) * cos \theta_j} {p(\omega_j)} \).
+			In my code, for each of the N samples, I used the UniformHemisphereSampler3D to randomly sample a direction \( \omega_j \) as given by the 
+			PDF \( p(\omega) \). I then cast a ray traveling from the hit point in the direction \( \omega_j \), and then checked if that ray 
+			intersected an object. If it did, I calculated \( L_i \) as that intersected object's emission, \( f_r \) as the hit point surface's 
+			BRDF, and \( \cos \theta_j \) as the dot product between the surface's normal vector and \( \omega_j \). Since we're sampling over 
+			a hemisphere, \( p(\omega_j) = \frac{1}{2 \pi} \). I added each sample output to the quantity \( L_o \) and then divided \( L_o \) by the number of samples
+			to return the Monte Carlo estimate. 
+		</p>
+		<p>
+			However, uniform hemisphere sampling can produce a lot of noise (since not all sampled directions will intersect with light sources) 
+			and also doesn't allow us to sample point lights. <strong>Importance sampling of light sources</strong> aims to address this by directly
+			sampling light sources themselves, rather than random directions in the hemisphere around the hit point. In my code, I first initialized 
+			a sample count, then iterated over all light sources; if a light source was a point light, I sampled it only one time (as all samples of 
+			a point light are the same), and if it was otherwise an area light, I sampled it ns_area_light times. Estimating the outgoing light 
+			from each sample was the same process of calculating the reflectance equation as in hemisphere sampling, but when casting the ray, I 
+			checked if the ray intersected another object on its way to the light source -- if so, that means the ray is a shadow ray and shouldn't 
+			be included in \( L_o \). Again, I averaged the sum of all the samples' outgoing light by the total sample count to return the Monte Carlo estimate. 
+		</p>
+		<p>
+			The below images show comparisons of .dae files rendered with uniform hemisphere sampling and with importance sampling of lights.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBbunny_hemisphere.png" width="400px"/>
+				  <figcaption>CBbunny.dae with uniform hemisphere sampling.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBbunny_importance.png" width="400px"/>
+				  <figcaption>CBbunny.dae with importance sampling of lights.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBspheres_hemisphere.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae with uniform hemisphere sampling.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBspheres_importance.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae with importance sampling of lights.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			The noise is very apparent in the renderings that use hemisphere sampling, and they appear almost staticky with the amount of dark spots scattered
+			throughout the scene. By contrast, the same scenes rendered by importance sampling the light sources appear much smoother and with 
+			drastically less noise (if any at all). Again, this occurs because when we randomly sample directions in the hemisphere around a contact point 
+			on a surface, rays traveling in those sampled directions may not intersect with a light source, and therefore pixels that are integrations of these 
+			samples will be black due to the lack of irradiance on that surface. Importance sampling reduces the amount of "wasted" samples by restricting 
+			sampled directions to those that come from light sources, and thus produces much less noise. 
+		</p>
+		<p>
+			Finally, in the table of images below, I compare the noise levels in renderings with light importance sampling with varying numbers of light rays and 
+			1 sample per pixel.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBbunny_1ray.png" width="400px"/>
+				  <figcaption>CBbunny.dae with 1 sample per area light.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBbunny_4ray.png" width="400px"/>
+				  <figcaption>CBbunny.dae with 4 samples per area light.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBbunny_16ray.png" width="400px"/>
+				  <figcaption>CBbunny.dae with 16 samples per area light.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p3_CBbunny_64ray.png" width="400px"/>
+				  <figcaption>CBbunny.dae with 64 samples per area light.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			In these renderings, there is a clear reduction in noise with increasing amounts of samples per area light. This is because the 
+			Monte Carlo estimate of the integral of radiance over the hit point becomes more accurate with higher sample counts. However, there is 
+			still some visible noise in even the rendering with 64 light rays, and this is because we're only using 1 sample per pixel for all images;
+			the noise would be additionally reduced with more samples per pixel as well, but this would likely be quite computationally expensive. 
+		</p>
+
 
 		
-		<h2>Part 3: Direct Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
 		<h2>Part 4: Global Illumination</h2>
 		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
