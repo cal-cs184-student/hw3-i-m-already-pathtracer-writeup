@@ -293,17 +293,281 @@
 
 		
 		<h2>Part 4: Global Illumination</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+		<p>
+			In this part, I implemented global illumination by including indirect lighting, which is light that has bounced off of other surfaces 
+			multiple times before arriving at its "final" location. Indirect lighting adds a lot more visual richness to a scene by illuminating 
+			surfaces that aren't directly reached by a light source. 
+		</p>
+		<p>
+			For indirect lighting at a certain point, we want to include the irradiance contributions of light rays which have already reflected 
+			off of multiple other surfaces. We can think of this as a recursive series of bounces: we add the emission at the current
+			bounce point to the total irradiance, then randomly cast a ray from the current hit point and see if it intersects with a primitive. If so, we then find the 
+			intersection details for that primitive, add its emitted radiance to the total irradiance, and then repeat the process until we've counted
+			N bounces. I coded this as a recursive process as well, initializing all rays with the maximum depth and calculating the one-bounce 
+			radiance to add to \( L_o \). If the ray's depth was greater than 1, I then randomly sampled a direction from the hit point, cast a new ray 
+			in that direction with a decremented depth, evaluated for an intersection with a primitive, and then recursively called the process
+			at the new hit point, adding to the total irradiance along the way. The \( L_i \) factor is given by the recursive call to at_least_one_bounce_radiance
+			at the new hit point. This process ends when the maximum depth is reached or if the ray fails to intersect another object. The final 
+			result is a Monte Carlo integration of the irradiance obtained over N bounces of light. 
+		</p>
+		<p>
+			However, for true global illumination we would want into integrate over all rays of infinite depth, because light can bounce an infinite
+			number of times off of surfaces (although its energy may dissipate with each bounce, which makes radiance contributions of higher bounces much lower).
+			This is obviously not possible for computational reasons, since we would never be able to end our recursive loop of calculating 
+			radiance over infinite bounces, even though the radiance contributions would be practically negligible at high enough bounces. 
+			Additionally, by capping our possible ray depth to N, we're biasing our estimate of the total irradiance at a point because we can't include
+			radiance from ray paths that are longer than N. We can alleviate this with Russian roulette termination, where each ray with a longer path
+			has a random chance to terminate. I implemented this in my code by simply setting a value of 0.35 for the termination probability; if 
+			the coin_flip method returns false using this probability, then the ray won't terminate and I can include its radiance contribution and normalize it by the continuation
+			probability, which is \( 1 - p(terminate) \). Otherwise, the ray will terminate, and I won't include the radiance from additional bounces.
+		</p>
+		<h3>Global Illumination Renderings</h3>
+		<p>
+			Below are some images rendered with global illumination, using 1024 samples per pixel.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_global_CBspheres.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae with global illumination.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_global_CBbunny.png" width="400px"/>
+				  <figcaption>CBbunny.dae with global illumination.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			We can see that compared to part 3, the overall contrast in the image is lower, with the shadows being lighter and less dramatic thanks to the 
+			addition of indirect lighting on the undersides of the objects, which are not directly exposed to the area light source. Additionally,
+			the spheres and bunny are no longer entirely in grayscale but have some light reddish hues on the left and blue on the right; this is color bleeding also 
+			due to indirect lighting, where the light that bounces off of the walls and onto the objects carries the color of those walls.
+		</p>
+		<h3>Direct-Only Illumination vs. Indirect-Only Illumination</h3>
+		<p>
+			Here is a comparison of CBspheres_lambertian.dae with either only direct or indirect illumination, again with 1024 samples per pixel.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_CBspheres_direct.png" width="400px"/>
+				  <figcaption>Direct illumination only.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_CBspheres_indirect.png" width="400px"/>
+				  <figcaption>Indirect illumination only.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			With direct lighting only, the undersides of the spheres are in deep shadow because they are not directly exposed to the area light
+			source, as mentioned before, and there is also no color bleeding. By contrast, the rendering that uses only indirect illumination has almost a 
+			negative image effect to it, where the undersides of the spheres are illuminated and there's color bleeding due to the bounces of the light rays that are not
+			included in direct illumination. Both of these components are necessary for a realistic image; it is apparent that just direct or 
+			indirect lighting doesn't produce a realistic rendering. 
+		</p>
+		<h3>Indirect Lighting without Bounce Accumulation</h3>
+		<p>
+			The table below shows renderings of CBbunny.dae with indirect lighting using only the final bounces of light (no accumulation along the ray paths) for maximum 
+			ray depths of 0 through 5. I again used 1024 samples per pixel and did not include Russian roulette for ray termination.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_noaccum_m0.png" width="350px"/>
+				  <figcaption>No accumulation, m = 0.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_noaccum_m1.png" width="350px"/>
+				  <figcaption>No accumulation, m = 1.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_noaccum_m2.png" width="350px"/>
+				  <figcaption>No accumulation, m = 2.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_noaccum_m3.png" width="350px"/>
+				  <figcaption>No accumulation, m = 3.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_noaccum_m4.png" width="350px"/>
+				  <figcaption>No accumulation, m = 4.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_noaccum_m5.png" width="350px"/>
+				  <figcaption>No accumulation, m = 5.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			A ray depth of 1 simply produces direct illumination on the bunny. However, at m = 2, we can see indirect illumination along the underside 
+			of the bunny as well as color bleeding, but the scene is noticeably dimmer. At m = 3, the scene is even darker, and the indirect
+			lighting is less apparent on the bunny itself. This is because whenever light bounces off of a surface, some of the energy dissipates, 
+			and the radiance of the light after multiple bounces is significantly diminished; we can see this clearly with how dark the scene 
+			becomes for higher values of m. Adding these individual bounce effects to a rendering can improve its realism because in 
+			the real world, light bounces innumerable times off of objects, and implementing lighting from rays that bounce up to m times is a useful way 
+			to simulate indirect lighting as in the real world.
+		</p>
+		<h3>Indirect Lighting with Bounce Accumulation</h3>
+		<p>
+			We can compare these final bounce-only renderings with the accumulated lighting versions below. Again, this is 1024 samples per pixel
+			for maximum ray depths 0 through 5, without Russian roulette termination.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_accum_m0.png" width="350px"/>
+				  <figcaption>Accumulated bounces, m = 0.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_accum_m1.png" width="350px"/>
+				  <figcaption>Accumulated bounces, m = 1.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_accum_m2.png" width="350px"/>
+				  <figcaption>Accumulated bounces, m = 2.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_accum_m3.png" width="350px"/>
+				  <figcaption>Accumulated bounces, m = 3.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_accum_m4.png" width="350px"/>
+				  <figcaption>Accumulated bounces, m = 4.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_accum_m5.png" width="350px"/>
+				  <figcaption>Accumulated bounces, m = 5.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			Unlike the final bounce-only renderings, these accumulated renderings become more and more realistic for higher values of m, 
+			because we're adding in the light from subsequent bounces to more accurately simulate global illumination. 
+			There isn't much of a difference from m = 2 onwards, and this is because the lighting contributions from 3 bounces or more are so 
+			small (hence the corresponding final bounce-only renderings being so dark) that the visual difference between renderings with higher 
+			values of m is quite marginal. However, I do think that there is more color bleeding visible in the m = 5 rendering compared to m = 2, 
+			and the shadows on the bunny's paws don't look quite so deep due to the additions of radiance along the longer ray paths. 
+		</p>
+		<h3>Global Illumination with Russian Roulette Ray Termination</h3>
+		<p>
+			The images below are of CBbunny.dae (again with 1024 samples per pixel), using Russian roulette ray termination for various 
+			ray depths.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_roulette_m0.png" width="350px"/>
+				  <figcaption>Russian roulette termination, m = 0.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_roulette_m1.png" width="350px"/>
+				  <figcaption>Russian roulette termination, m = 1.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_roulette_m2.png" width="350px"/>
+				  <figcaption>Russian roulette termination, m = 2.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_roulette_m3.png" width="350px"/>
+				  <figcaption>Russian roulette termination, m = 3.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_roulette_m4.png" width="350px"/>
+				  <figcaption>Russian roulette termination, m = 4.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_bunny_roulette_m100.png" width="350px"/>
+				  <figcaption>Russian roulette termination, m = 100.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			As mentioned before, randomly terminating light rays with this Russian roulette method allows us to calculate a less biased estimate 
+			of the total irradiance at a point, while also ensuring that the recursive loop of calculating radiance due to multiple bounces 
+			doesn't run too long. Some of the rays may terminate prior to reaching their maximum depth, but we can see from the m = 100 rendering 
+			that this doesn't diminish the realism of the scene, and it also improves rendering time. 
+		</p>
+		<h3>Renderings with Varying Sample-per-Pixel Rates</h3>
+		<p>
+			Finally, below are renderings of CBspheres_lambertian.dae, using global illumination, 4 light rays, and varying numbers of samples
+			per pixel. 
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s1.png" width="350px"/>
+				  <figcaption>1 sample per pixel.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s2.png" width="350px"/>
+				  <figcaption>2 samples per pixel.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s4.png" width="350px"/>
+				  <figcaption>4 samples per pixel.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s8.png" width="350px"/>
+				  <figcaption>8 samples per pixel.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s16.png" width="350px"/>
+				  <figcaption>16 samples per pixel.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s64.png" width="350px"/>
+				  <figcaption>64 samples per pixel.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s256.png" width="350px"/>
+				  <figcaption>256 samples per pixel.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s512.png" width="350px"/>
+				  <figcaption>512 samples per pixel.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p4_spheres_s1024.png" width="350px"/>
+				  <figcaption>1024 samples per pixel.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			There is significant noise present in the renderings with 1 to 8 samples, and moderate noise is visible even for 16 and 64 samples
+			per pixel. The renderings with 256, 512, and 1024 samples, however, look quite smooth, with little if any noise at all. Generally the 
+			amount of noise visibly decreases with increasing numbers of samples per pixel; this is due to the use of Monte Carlo integration in our pixel 
+			sample generation process, where we average the results of all samples for the pixel. Thus the pixel colors will be more accurate for higher numbers of samples, reducing the noise throughout
+			the rendering.
+		</p>
 
+
+		
 		<h2>Part 5: Adaptive Sampling</h2>
 		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 
-		<h2>(Optional) Part 6: Extra Credit Opportunities</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-		
-
-
-		
 		</div>
 	</body>
 </html>
