@@ -26,7 +26,9 @@
 
 			figcaption {
 				font-size: 14;
+				margin-bottom: 10px;
 			}
+
 		</style>
 	</head>
 	<body>
@@ -44,15 +46,24 @@
 		-->
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole. Share your thoughts on what interesting things you've learned from completing the homework.
-
-		<h2>Part 1: Ray Generation and Scene Intersection</h2>
 		<p>
 			One of the topics of homework 2 was providing shading effects to rendered surfaces with flat shading and then with Phong shading, 
 			the latter of which drastically improves the appearance of shadows on curved surfaces. In this homework, we're instead exploring an improved 
-			illumination model to simulate global illumination, using a physically-based renderer that implements a pathtracing algorithm. The idea is to trace a 
-			ray that originates from the camera viewpoint into various places in the scene, and the ray can reflect off of an object to imitate 
-			light reflection or scattering. In part 1, I implemented the very beginning of the rendering pipeline with three steps: pixel sample generation, ray generation, and then
+			illumination model to simulate global illumination, using a physically-based renderer that implements a pathtracing algorithm. 
+		</p>
+		<p>
+			I first implemented pixel sampling to estimate a pixel's radiance, as well as ray intersections with primitive objects such as spheres 
+			and triangles. This latter part came in handy for simulating light transport, where I wrote methods for direct illumination (zero-bounce
+			and one-bounce radiance) as well as indirect illumination (which occurs when we render lighting that has bounced multiple times).
+			Both direct and indirect illumination are necessary for full global illumination, which highly enhances the realism of a rendering. 
+			I also implemented some methods to improve rendering time and efficiency: bounding volume hierarchies, which reduces the amount of ray-primitive 
+			intersections to evaluate, and adaptive sampling, which reduces the amount of samples per pixel that must be calculated while rendering.
+		</p>
+		
+		<h2>Part 1: Ray Generation and Scene Intersection</h2>
+		<p>
+			The idea behind part 1 is to trace a ray that originates from the camera viewpoint into various places in the scene, where the ray can 
+			reflect off of an object to imitate light reflection or scattering. I implemented the very beginning of the rendering pipeline here with three steps: pixel sample generation, ray generation, and then
 			ray intersections with primitive shapes, triangles and spheres specifically. 
 		</p>
 		<h3>Pixel Sample Generation</h3>
@@ -562,12 +573,69 @@
 			sample generation process, where we average the results of all samples for the pixel. Thus the pixel colors will be more accurate for higher numbers of samples, reducing the noise throughout
 			the rendering.
 		</p>
-
-
 		
 		<h2>Part 5: Adaptive Sampling</h2>
-		Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-
+		<p>
+			Monte Carlo integration for pixel samples is an effective estimation method, yet can produce a lot of noise when the number of samples
+			per pixel is low. However, it can take a very long time to render images that use a high fixed number of samples per pixel. 
+			Adaptive sampling helps us reduce rendering times by increasing sample counts for pixels only in the more "difficult" parts of the image, where 
+			a pixel's value may take longer to converge over more samples. 
+		</p>
+		<p>
+			We determine pixel convergence statistically: for n samples of a pixel, we calculate the two quantities \( s_1 = \sum^{n}_{i=1} x_i \)
+			and \( s_2 = \sum^{n}_{i=1} x_i^2 \), where \( x_i \) is the illuminance of a sample. Then, we can calculate the mean and standard deviation
+			of the n samples' values, given by \( \mu = \frac{s_1}{n} \) and \( \sigma^2 = \frac{1}{n-1} * (s_2 - \frac{s_1^2}{n}) \), with the 
+			standard deviation being the square root of \( \sigma^2 \). We then calculate a 95% confidence interval for the pixel's converged value, 
+			measured by the quantity \( I = 1.96 * \frac{\sigma}{\sqrt{n}} \). Given a maximum tolerance value (0.05 by default), if \( I \leq maxTolerance
+			* \mu \), the pixel has converged and we can then stop sampling rays for this pixel. 
+		</p>
+		<p>
+			I implemented this in the raytrace_pixel() method by initializing variables for \( s_1 \) and \( s_2 \) prior to beginning the sampling 
+			loop for each pixel. For each sample, I added its illuminance and squared illuminance to \( s_1 \) and \( s_2 \) respectively. If the 
+			current sample count was a multiple of the batch size, I then calculated \( \mu \), \( \sigma \), and \(I\), and then evaluated the convergence
+			condition. If the pixel converged, then I stopped the pixel sampling loop, set the pixel's color to the average of the current sample count,
+			and also stored the current sample count in the sample count buffer to visualize the sampling rates. If the pixel converges before the 
+			maximum sampling rate is reached, this saves some rendering time. 
+		</p>
+		<p>
+			Below are some scenes rendered with 2048 samples per pixel, 1 sample per light, a maximum ray depth of 5, a sample batch size of 
+			64, and a tolerance of 0.05. The corresponding sampling rate images are shown to the right.
+		</p>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p5_bunny_adaptive.png" width="400px"/>
+				  <figcaption>A rendering of CBbunny.dae.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p5_bunny_adaptive_rate.png" width="400px"/>
+				  <figcaption>CBbunny.dae's rendering sampling rate.</figcaption>
+				</td>
+			  </tr>
+			  <tr>
+				<td style="text-align: center;">
+				  <img src="assets/p5_spheres_adaptive.png" width="400px"/>
+				  <figcaption>A rendering of CBspheres_lambertian.dae.</figcaption>
+				</td>
+				<td style="text-align: center;">
+				  <img src="assets/p5_spheres_adaptive_rate.png" width="400px"/>
+				  <figcaption>CBspheres_lambertian.dae's rendering sampling rate.</figcaption>
+				</td>
+			  </tr>
+			</table>
+		</div>
+		<p>
+			In the sampling rate images, red represents high sampling rates and blue represents low sampling rates; we can then gauge where the 
+			rendering complexity of the scene lies, based on the parts of the image that are red. For both the bunny and the spheres, their 
+			undersides and the ceiling require high amounts of samples to converge. This may potentially be due to the shapes of these surfaces, 
+			where curved or uneven surfaces receive differing irradiance due to indirect lighting, compared to the flat walls and floor. Using
+			adaptive sampling also significantly decreased the rendering time for these scenes, since most of the images did not require the 
+			maximum amount of samples per pixel. 
+		</p>
+		<p style="font-size: 12px"><strong>Acknowledgement of AI Use:</strong> I took a first pass at all parts of the homework on my own, 
+		only using AI afterwards to debug when my code failed or didn't produce the desired output.</p>
+		
 		</div>
 	</body>
 </html>
