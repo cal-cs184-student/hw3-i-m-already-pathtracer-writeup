@@ -615,21 +615,21 @@
 			  </tr>
 			  <tr>
 				<td style="text-align: center;">
-				  <img src="assets/p5_spheres_adaptive.png" width="400px"/>
-				  <figcaption>A rendering of CBspheres_lambertian.dae.</figcaption>
+				  <img src="assets/p5_dragon_adaptive.png" width="400px"/>
+				  <figcaption>A rendering of dragon.dae.</figcaption>
 				</td>
 				<td style="text-align: center;">
-				  <img src="assets/p5_spheres_adaptive_rate.png" width="400px"/>
-				  <figcaption>CBspheres_lambertian.dae's rendering sampling rate.</figcaption>
+				  <img src="assets/p5_dragon_adaptive_rate.png" width="400px"/>
+				  <figcaption>dragon.dae's rendering sampling rate.</figcaption>
 				</td>
 			  </tr>
 			</table>
 		</div>
 		<p>
 			In the sampling rate images, red represents high sampling rates and blue represents low sampling rates; we can then gauge where the 
-			rendering complexity of the scene lies, based on the parts of the image that are red. For both the bunny and the spheres, their 
-			undersides and the ceiling require high amounts of samples to converge. This may potentially be due to the shapes of these surfaces, 
-			where curved or uneven surfaces receive differing irradiance due to indirect lighting, compared to the flat walls and floor. Using
+			rendering complexity of the scene lies, based on the parts of the image that are red. For both the bunny and the dragon, their 
+			undersides require high amounts of samples to converge. This may potentially be due to the shapes of these surfaces, 
+			where curved or uneven surfaces receive differing irradiance due to indirect lighting, compared to flatter surfaces such as the walls and floor. Using
 			adaptive sampling also significantly decreased the rendering time for these scenes, since most of the images did not require the 
 			maximum amount of samples per pixel. 
 		</p>
